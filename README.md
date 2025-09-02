@@ -1,197 +1,190 @@
 # LlamaIndex RAG Chatbot
 
-**LlamaIndex RAG Chatbot** is a reference implementation of a Retrieval‑Augmented Generation (RAG) powered conversational agent built on top of **[LlamaIndex](https://github.com/run-llama/llama_index)**.  The bot indexes a document collection, retrieves relevant passages at query time, and feeds them to a large language model (LLM) to produce grounded, up‑to‑date answers.
+## Overview
+
+**LlamaIndex RAG Chatbot** is a reference implementation that demonstrates how to build a Retrieval‑Augmented Generation (RAG) powered chatbot using the **LlamaIndex** library. The project showcases:
+- Indexing of arbitrary document collections (PDF, Markdown, plain text, etc.)
+- Efficient vector‑store retrieval using popular back‑ends (FAISS, Chroma, Pinecone, etc.)
+- Integration with LLMs (OpenAI, Anthropic, Llama‑2, etc.) to generate context‑aware responses
+- A simple FastAPI / Streamlit front‑end for interactive chatting
+- A clear structure that is easy to extend, test, and contribute to.
+
+The README below provides everything a developer needs to get started, run the demo, and contribute.
 
 ---
 
 ## Table of Contents
 
-- [Features](#features)
-- [Architecture Overview](#architecture-overview)
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
 - [Configuration](#configuration)
 - [Running the Chatbot](#running-the-chatbot)
-- [Usage Examples](#usage-examples)
+- [Project Structure](#project-structure)
+- [Key Concepts](#key-concepts)
 - [Testing](#testing)
 - [Contributing](#contributing)
 - [License](#license)
-- [Acknowledgements](#acknowledgements)
-
----
-
-## Features
-
-- **RAG pipeline**: Combine dense vector retrieval (via `FAISS` / `Chroma` / `Pinecone`) with LLM generation.
-- **Modular index loaders**: Supports plain text, PDF, Markdown, HTML, and custom loaders.
-- **Prompt engineering**: Pre‑defined system prompts and optional custom prompt templates.
-- **Streaming responses**: Real‑time token streaming for a smoother UI experience.
-- **Docker support**: Official Dockerfile for reproducible environments.
-- **Extensible**: Plug‑in new LLM providers, retrievers, or storage back‑ends with minimal code changes.
-
----
-
-## Architecture Overview
-
-```mermaid
-flowchart TD
-    subgraph Indexing
-        Docs[Document Corpus] -->|Loaders| Loader[LLamaIndex Loaders]
-        Loader -->|Chunk & Embed| Index[Vector Store (FAISS/Chroma)]
-    end
-    subgraph Retrieval
-        Query[User Query] -->|Retriever| Index
-        Index -->|Top‑k passages| Retrieved[Relevant Passages]
-    end
-    subgraph Generation
-        Retrieved -->|Prompt Template| Prompt[Prompt Builder]
-        Prompt -->|LLM| LLM[OpenAI / Anthropic / Llama]
-        LLM -->|Answer| Response[Chat UI / CLI]
-    end
-```
-
-1. **Document ingestion** – Documents are loaded, split into chunks, embedded, and stored in a vector store.
-2. **Retrieval** – At query time the retriever fetches the most relevant chunks.
-3. **Generation** – Retrieved chunks are injected into a system prompt and sent to the LLM, which produces a grounded answer.
 
 ---
 
 ## Prerequisites
 
-| Requirement | Version |
-|-------------|---------|
-| Python      | >=3.9   |
-| pip         | latest  |
-| OpenAI API key (or compatible LLM endpoint) |
-| Optional: Docker & Docker‑Compose |
+| Requirement | Recommended Version |
+|-------------|----------------------|
+| Python      | 3.9 – 3.12           |
+| pip         | >=23.0               |
+| Git         | any recent version  |
+
+You will also need API keys for the LLM and (optionally) the vector store you choose. See the **Configuration** section for details.
 
 ---
 
 ## Installation
 
-### 1. Clone the repository
-
 ```bash
+# Clone the repository
 git clone https://github.com/your-org/llamaindex-rag-chatbot.git
 cd llamaindex-rag-chatbot
-```
 
-### 2. Create a virtual environment (recommended)
-
-```bash
+# Create a virtual environment (recommended)
 python -m venv .venv
-source .venv/bin/activate   # On Windows: .venv\Scripts\activate
-```
+source .venv/bin/activate   # on Windows use `.venv\Scripts\activate`
 
-### 3. Install Python dependencies
-
-```bash
+# Install the core dependencies
 pip install -r requirements.txt
 ```
 
-### 4. (Optional) Install with Docker
-
-```bash
-docker compose up --build
-```
+The `requirements.txt` includes:
+- `llama-index` (core LlamaIndex library)
+- `openai`, `anthropic`, `together` (LLM providers – optional)
+- `faiss-cpu` / `chromadb` (vector‑store back‑ends)
+- `fastapi`, `uvicorn`, `streamlit` (API & UI)
+- `pytest`, `pytest‑cov` (testing)
 
 ---
 
 ## Configuration
 
-Configuration is handled via a **`.env`** file at the project root.  Example:
+Configuration is handled through environment variables or a `.env` file at the project root. The project uses **python‑dotenv** to load variables automatically.
 
-```dotenv
-# .env
-OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxx
-LLM_MODEL=gpt-4o-mini   # or "claude-3-5-sonnet-20240620"
-VECTOR_STORE=faiss      # options: faiss, chroma, pinecone
-INDEX_PATH=./data/index.faiss
-CHUNK_SIZE=1024
-CHUNK_OVERLAP=200
-TOP_K=5
-```
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `LLM_PROVIDER` | The LLM provider to use (`openai`, `anthropic`, `together`, `llama_cpp`). | `openai` |
+| `OPENAI_API_KEY` | Your OpenAI API key (required if `LLM_PROVIDER=openai`). | `sk-...` |
+| `ANTHROPIC_API_KEY` | Anthropic API key (if using Anthropic). | `sk-ant-...` |
+| `VECTOR_STORE` | Vector store backend (`faiss`, `chromadb`, `pinecone`). | `faiss` |
+| `FAISS_INDEX_PATH` | Path where the FAISS index will be persisted. | `./data/faiss_index` |
+| `DOCS_PATH` | Directory containing source documents to be indexed. | `./data/docs` |
+| `CHUNK_SIZE` | Number of tokens per chunk (default = 512). | `512` |
+| `CHUNK_OVERLAP` | Overlap between chunks (default = 50). | `50` |
 
-> **Tip** – Use `dotenv` to load the file automatically (`python -m dotenv run -- python app.py`).
+Create a `.env.example` file for reference and copy it to `.env` before running the app.
 
 ---
 
 ## Running the Chatbot
 
-### CLI mode
+### 1. Index your documents
 
 ```bash
-python -m llamaindex_rag_chatbot.cli
+python scripts/build_index.py
 ```
 
-You will be presented with an interactive prompt.  Type `exit` or press `Ctrl‑D` to quit.
+The script reads all files under `DOCS_PATH`, splits them into chunks, creates embeddings using the selected LLM provider, and stores them in the configured vector store.
 
-### Web UI (FastAPI + React)
+### 2. Start the API server
 
 ```bash
-uvicorn llamaindex_rag_chatbot.api:app --host 0.0.0.0 --port 8000
+uvicorn app.main:app --reload
 ```
 
-Open `http://localhost:8000` in a browser.  The UI uses Server‑Sent Events (SSE) to stream LLM tokens.
+The FastAPI server will be available at `http://127.0.0.1:8000`. Swagger UI can be accessed at `/docs`.
+
+### 3. Launch the UI (optional)
+
+```bash
+streamlit run ui/chat_interface.py
+```
+
+A Streamlit UI will open in your browser, allowing you to interact with the chatbot without writing any client code.
 
 ---
 
-## Usage Examples
+## Project Structure
 
-### 1. Index a custom document folder
-
-```bash
-python -m llamaindex_rag_chatbot.index \
-    --source ./my_documents \
-    --store faiss \
-    --output ./data/my_index.faiss
+```
+llamaindex-rag-chatbot/
+│
+├─ app/                     # FastAPI application
+│   ├─ __init__.py
+│   ├─ main.py              # API routes & startup logic
+│   └─ rag_service.py       # Core RAG pipeline (retrieval + generation)
+│
+├─ ui/                      # Streamlit front‑end
+│   └─ chat_interface.py
+│
+├─ scripts/                 # Utility scripts (index building, data cleaning)
+│   └─ build_index.py
+│
+├─ data/                    # Sample documents & persisted indexes
+│   └─ docs/                # Place your source files here
+│
+├─ tests/                   # Unit and integration tests
+│   └─ test_rag_service.py
+│
+├─ .env.example             # Example environment configuration
+├─ requirements.txt
+├─ pyproject.toml           # Optional – for poetry users
+└─ README.md                # ← you are here
 ```
 
-### 2. Ask a question via the CLI
+---
 
-```bash
->>> How does retrieval‑augmented generation improve answer factuality?
-[Streaming answer ...]
-```
+## Key Concepts
 
-### 3. Call the REST endpoint (cURL example)
+### Retrieval‑Augmented Generation (RAG)
+1. **Retrieval** – The system first queries a vector store to fetch the most relevant document chunks for a user query.
+2. **Augmentation** – Retrieved chunks are concatenated with the original prompt and sent to the LLM.
+3. **Generation** – The LLM produces a response that is grounded in the retrieved knowledge, reducing hallucinations.
 
-```bash
-curl -X POST http://localhost:8000/chat \
-  -H "Content-Type: application/json" \
-  -d '{"query": "Explain the difference between dense and sparse retrieval"}'
-```
+### LlamaIndex
+- Provides a **unified API** for data loaders, text splitters, embedding models, and vector stores.
+- Supports **Composable Graphs**, allowing you to chain multiple retrieval strategies (e.g., hybrid BM25 + vector search).
+- Offers **Query Engines** that encapsulate the full RAG flow, which we expose via `rag_service.py`.
 
 ---
 
 ## Testing
 
-The repository includes a small test suite based on **pytest**.
+Run the test suite with coverage reporting:
 
 ```bash
-pip install -r dev-requirements.txt
-pytest -vv
+pytest --cov=app tests/
 ```
 
-Tests cover:
+The tests cover:
 - Document loading & chunking
-- Vector store indexing & retrieval
-- Prompt construction
-- End‑to‑end RAG pipeline (mocked LLM)
+- Vector‑store indexing & similarity search
+- End‑to‑end RAG pipeline (mocked LLM responses)
+- API endpoint validation
 
 ---
 
 ## Contributing
 
-Contributions are welcome!  Follow these steps:
+We welcome contributions! Please follow these steps:
+1. **Fork** the repository and clone your fork.
+2. Create a feature branch: `git checkout -b feat/your-feature`.
+3. Ensure code style with `ruff` (or `flake8`) and type checking with `mypy`.
+4. Add or update tests for new functionality.
+5. Run the full test suite (`pytest`).
+6. Open a Pull Request with a clear description of the change.
 
-1. **Fork** the repository and create a new branch.
-2. Ensure code follows the existing style (`black`, `isort`, `flake8`).
-3. Add or update tests for new functionality.
-4. Run the full test suite (`pytest`).
-5. Submit a Pull Request with a clear description of the change.
-
-See `CONTRIBUTING.md` for detailed guidelines on development workflow, CI checks, and code of conduct.
+### Development Guidelines
+- Keep functions small and single‑purpose.
+- Document public functions with docstrings that include type hints.
+- Use `logging` instead of `print` for runtime information.
+- Update the `CHANGELOG.md` (if present) with a concise entry for each PR.
 
 ---
 
@@ -203,13 +196,10 @@ This project is licensed under the **MIT License** – see the `LICENSE` file fo
 
 ## Acknowledgements
 
-- **LlamaIndex** – the core library that powers data ingestion, indexing, and retrieval.
-- **OpenAI / Anthropic** – for providing the LLM endpoints used in the examples.
-- **FAISS / Chroma** – vector store back‑ends used for similarity search.
-- Community contributors who helped improve the RAG pipeline and documentation.
+- **LlamaIndex** – the backbone of the retrieval layer.
+- **OpenAI / Anthropic / Together** – for providing powerful LLM APIs.
+- Community contributors who help improve the example and documentation.
 
 ---
 
----
-
-*Happy building!*
+*Happy hacking!*
