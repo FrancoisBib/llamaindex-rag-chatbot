@@ -1,13 +1,8 @@
 # LlamaIndex RAG Chatbot
 
-## Overview
+**LlamaIndex RAG Chatbot** is a reference implementation of a Retrieval‑Augmented Generation (RAG) chatbot built on top of the **LlamaIndex** ecosystem. It demonstrates how to combine vector stores, document loaders, and LLMs to build a conversational agent that can answer questions using both its internal knowledge and external data sources.
 
-**LlamaIndex RAG Chatbot** is a reference implementation that demonstrates how to build a Retrieval‑Augmented Generation (RAG) chatbot using the **LlamaIndex** library. The bot retrieves relevant documents from a vector store, augments the prompt with the retrieved context, and generates answers with a large language model (LLM).
-
-The repository showcases:
-- Integration of LlamaIndex data loaders, indexes, and query engines.
-- A simple FastAPI/WebSocket interface for interactive chat.
-- Configuration options for different LLM providers, embeddings, and storage back‑ends.
+---
 
 ## Table of Contents
 
@@ -16,166 +11,166 @@ The repository showcases:
 - [Installation](#installation)
 - [Configuration](#configuration)
 - [Running the Chatbot](#running-the-chatbot)
-- [Usage Example](#usage-example)
+- [Project Structure](#project-structure)
 - [Testing](#testing)
 - [Contributing](#contributing)
 - [License](#license)
 
+---
+
 ## Features
 
-- **RAG pipeline** built on LlamaIndex (data ingestion → vector index → query engine).
-- Support for multiple LLMs (OpenAI, Anthropic, Cohere, etc.) and embedding models.
-- Pluggable vector stores (FAISS, Pinecone, Weaviate, etc.).
-- Async FastAPI backend with optional WebSocket UI.
-- Dockerfile for containerised deployment.
-- Comprehensive type hints and unit tests.
+- **Retrieval‑Augmented Generation** using LlamaIndex's `VectorStoreIndex`.
+- Supports multiple document loaders (PDF, Markdown, plain text, etc.).
+- Plug‑and‑play LLM back‑ends (OpenAI, Anthropic, Llama.cpp, etc.).
+- Simple CLI and optional FastAPI web UI.
+- Extensible architecture for custom retrievers, query engines, and post‑processors.
+
+---
 
 ## Prerequisites
 
-| Requirement | Minimum version |
-|-------------|-----------------|
-| Python      | 3.9             |
-| pip         | latest          |
-| Docker (optional) | 20.10+ |
+| Requirement | Version |
+|-------------|---------|
+| Python      | 3.9 or newer |
+| pip         | latest |
+| Git         | any |
+| An LLM API key (OpenAI, Anthropic, etc.) | – |
 
-You will also need API keys for the LLM and embedding services you intend to use (e.g., `OPENAI_API_KEY`).
+> **Note**: The project uses `poetry` for dependency management, but a `requirements.txt` is also provided for pip users.
+
+---
 
 ## Installation
 
-### 1. Clone the repository
+### Using Poetry (recommended)
+
+```bash
+# Clone the repository
+git clone https://github.com/your-org/llamaindex-rag-chatbot.git
+cd llamaindex-rag-chatbot
+
+# Install dependencies
+poetry install
+
+# Activate the virtual environment
+poetry shell
+```
+
+### Using pip
 
 ```bash
 git clone https://github.com/your-org/llamaindex-rag-chatbot.git
 cd llamaindex-rag-chatbot
-```
-
-### 2. Create a virtual environment (recommended)
-
-```bash
-python -m venv .venv
-source .venv/bin/activate   # On Windows: .venv\Scripts\activate
-```
-
-### 3. Install dependencies
-
-```bash
 pip install -r requirements.txt
 ```
 
-### 4. (Optional) Install the package in editable mode
-
-```bash
-pip install -e .
-```
+---
 
 ## Configuration
 
-Configuration is handled via environment variables or a `.env` file at the project root. The most common settings are:
+All configurable options are stored in `config.yaml`. A minimal example:
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `LLM_PROVIDER` | LLM backend (`openai`, `anthropic`, `cohere`, …) | `openai` |
-| `LLM_MODEL` | Model name for the selected provider | `gpt-4o-mini` |
-| `EMBEDDING_MODEL` | Embedding model name | `text-embedding-3-large` |
-| `VECTOR_STORE` | Vector store implementation (`faiss`, `pinecone`, `weaviate`) | `faiss` |
-| `DATA_PATH` | Path to the directory containing source documents | `data/` |
-| `API_KEY` | API key for the chosen LLM/embedding service | `sk-...` |
+```yaml
+# config.yaml
+llm:
+  provider: openai            # or anthropic, llama_cpp, etc.
+  model: gpt-4o-mini
+  api_key: "${OPENAI_API_KEY}"  # can be set via environment variable
 
-Create a `.env` file:
+index:
+  type: vector_store
+  store: chromadb
+  persist_dir: ./data/chroma
 
-```dotenv
-LLM_PROVIDER=openai
-LLM_MODEL=gpt-4o-mini
-EMBEDDING_MODEL=text-embedding-3-large
-VECTOR_STORE=faiss
-DATA_PATH=./data
-OPENAI_API_KEY=sk-...
+loader:
+  - type: directory
+    path: ./data/documents
+    extensions: [".pdf", ".md", ".txt"]
 ```
 
-The project uses **python‑dotenv** to load these variables automatically.
+You can override any setting at runtime via command‑line flags (see `python -m chatbot --help`).
+
+---
 
 ## Running the Chatbot
 
-### Local development (FastAPI server)
+### CLI mode
 
 ```bash
-uvicorn llamaindex_rag_chatbot.main:app --reload
+python -m chatbot --config config.yaml
 ```
 
-The API will be available at `http://127.0.0.1:8000`. Swagger UI can be accessed at `/docs`.
+You will be dropped into an interactive prompt where you can type natural‑language questions.
 
-### Docker deployment
+### Web UI (FastAPI)
 
 ```bash
-# Build the image
-docker build -t llamaindex-rag-chatbot .
-
-# Run the container (make sure to pass your .env file)
-docker run -p 8000:8000 --env-file .env llamaindex-rag-chatbot
+uvicorn app.main:app --reload
 ```
 
-## Usage Example
+Open your browser at `http://127.0.0.1:8000/docs` to explore the OpenAPI UI or navigate to `http://127.0.0.1:8000` for a simple chat interface.
 
-### API endpoint
+---
 
-`POST /chat`
+## Project Structure
 
-**Request body**
-```json
-{
-  "message": "Explain the concept of vector similarity search."
-}
+```
+llamaindex-rag-chatbot/
+├─ app/                     # FastAPI entry point (optional UI)
+│   ├─ main.py
+│   └─ routes.py
+├─ chatbot/                 # Core CLI implementation
+│   ├─ __init__.py
+│   ├─ cli.py               # argparse wrapper
+│   ├─ engine.py            # Retrieval + generation pipeline
+│   └─ utils.py
+├─ data/                    # Sample documents (git‑ignored by default)
+├─ tests/                   # Unit and integration tests
+│   └─ test_engine.py
+├─ config.yaml              # Default configuration file
+├─ requirements.txt         # pip‑compatible dependencies
+├─ pyproject.toml           # Poetry project definition
+└─ README.md                # ← you are here
 ```
 
-**Response**
-```json
-{
-  "answer": "Vector similarity search…",
-  "sources": ["doc1.pdf", "doc2.txt"]
-}
-```
-
-### Python client (optional helper)
-
-```python
-import httpx
-
-url = "http://127.0.0.1:8000/chat"
-payload = {"message": "What is Retrieval‑Augmented Generation?"}
-
-resp = httpx.post(url, json=payload)
-print(resp.json()["answer"])
-```
+---
 
 ## Testing
 
-The repository includes a pytest suite. To run tests:
+The project uses **pytest**. To run the test suite:
 
 ```bash
 pytest -v
 ```
 
-Coverage is measured with `coverage.py` and can be displayed via:
+Continuous integration is configured via GitHub Actions (see `.github/workflows/ci.yml`).
 
-```bash
-coverage run -m pytest && coverage report -m
-```
+---
 
 ## Contributing
 
-Contributions are welcome! Please follow these steps:
+Contributions are welcome! Follow these steps:
 
-1. **Fork** the repository.
-2. Create a **feature branch** (`git checkout -b feat/your-feature`).
-3. Write code adhering to the existing style (type hints, docstrings, linting with `ruff`).
-4. Add or update tests.
-5. Ensure all tests pass and coverage does not decrease.
-6. Open a **Pull Request** with a clear description of the change.
+1. **Fork** the repository and clone your fork.
+2. Create a new branch for your feature or bug‑fix:
+   ```bash
+   git checkout -b my-feature
+   ```
+3. Make your changes, ensuring that:
+   - Code follows the existing style (black + isort).
+   - New functionality is covered by tests.
+   - Documentation (README, docstrings) is updated.
+4. Run the test suite and linting tools:
+   ```bash
+   poetry run black . && poetry run isort . && poetry run flake8
+   poetry run pytest
+   ```
+5. Open a Pull Request against the `main` branch.
 
-### Development checklist
-- [ ] Run `ruff check .` and fix any linting issues.
-- [ ] Update the documentation (README, docstrings) if you add new functionality.
-- [ ] Verify the Docker image builds successfully.
+Please read the full **CONTRIBUTING.md** for detailed guidelines on coding standards, commit messages, and release process.
+
+---
 
 ## License
 
@@ -183,4 +178,11 @@ This project is licensed under the **MIT License** – see the `LICENSE` file fo
 
 ---
 
-*Happy hacking with LlamaIndex and RAG!*
+## Acknowledgments
+
+- **LlamaIndex** – the core library that powers retrieval and indexing.
+- **OpenAI**, **Anthropic**, **ChromaDB**, and other ecosystem partners.
+
+---
+
+*Happy building with LlamaIndex!*
