@@ -1,59 +1,54 @@
 # LlamaIndex RAG Chatbot
 
-## Overview
+![Python](https://img.shields.io/badge/python-3.9%2B-blue) ![License](https://img.shields.io/badge/license-MIT-green)
 
-The **LlamaIndex RAG Chatbot** is a reference implementation that demonstrates how to build a Retrieval‑Augmented Generation (RAG) powered conversational agent using **LlamaIndex** (formerly *GPT Index*).  It showcases:
-- Integration of LlamaIndex with vector stores for fast similarity search.
-- A modular pipeline that retrieves relevant documents, augments the prompt, and generates responses with a language model.
-- A simple FastAPI web service and a Streamlit UI for interactive chatting.
-
-This repository is intended for developers who want to:
-- Learn the best practices for constructing RAG pipelines with LlamaIndex.
-- Quickly prototype their own chatbot backed by custom data sources.
-- Contribute improvements or new integrations (e.g., additional vector stores, LLM providers, or UI components).
+A **Retrieval‑Augmented Generation (RAG)** chatbot built on top of **[LlamaIndex](https://github.com/run-llama/llama_index)**. The bot combines a large language model (LLM) with a vector store to retrieve relevant context from your own documents, enabling accurate and up‑to‑date answers.
 
 ---
 
 ## Table of Contents
 
 - [Features](#features)
-- [Quick Start](#quick-start)
+- [Demo](#demo)
+- [Getting Started](#getting-started)
   - [Prerequisites](#prerequisites)
   - [Installation](#installation)
-  - [Running the Demo](#running-the-demo)
+  - [Configuration](#configuration)
+  - [Running the Bot](#running-the-bot)
 - [Project Structure](#project-structure)
-- [Configuration](#configuration)
-- [Development & Contribution Guidelines](#development--contribution-guidelines)
-- [FAQ](#faq)
+- [Usage Examples](#usage-examples)
+- [Contributing](#contributing)
 - [License](#license)
+- [Acknowledgements](#acknowledgements)
 
 ---
 
 ## Features
 
-- **Modular RAG pipeline** built with LlamaIndex components (`Document`, `VectorStoreIndex`, `Retriever`, `QueryEngine`).
-- **Multiple data loaders** (PDF, TXT, CSV, Markdown) – easy to extend.
-- **Pluggable vector stores** – default is `FAISS`, but the code is compatible with any LlamaIndex‑supported store (e.g., `Pinecone`, `Weaviate`, `Qdrant`).
-- **LLM agnostic** – works with OpenAI, Anthropic, Llama‑CPP, Azure OpenAI, etc., via the unified LlamaIndex `LLM` interface.
-- **FastAPI backend** exposing `/chat` endpoint for programmatic access.
-- **Streamlit UI** for a ready‑to‑use web chat interface.
-- **Docker support** – one‑click containerised deployment.
-- **Extensive type hints & docstrings** for IDE autocompletion.
+- **RAG pipeline**: Retrieve relevant chunks from a local or remote document store and feed them to the LLM.
+- **Modular indexers**: Supports `SimpleDirectoryReader`, `PDFReader`, `CSVReader`, and custom loaders.
+- **Multiple vector stores**: Out‑of‑the‑box support for **FAISS**, **Chroma**, **Pinecone**, and **Weaviate**.
+- **Chat history management**: Maintains conversation context across turns.
+- **Extensible**: Plug‑in new LLM providers (OpenAI, Azure OpenAI, Ollama, etc.) and custom prompts.
+- **Docker ready**: One‑click containerisation for reproducible environments.
 
 ---
 
-## Quick Start
+## Demo
+
+> **Note**: A live demo is hosted at https://demo.llamaindex-rag-chatbot.example.com (replace with actual URL if available).
+
+![Chatbot Screenshot](docs/screenshot.png)
+
+---
+
+## Getting Started
 
 ### Prerequisites
 
-| Requirement | Recommended Version |
-|-------------|----------------------|
-| Python      | 3.9 – 3.12           |
-| pip         | >=23.0               |
-| Docker (optional) | >=24.0          |
-| OpenAI API key (or another LLM provider) | – |
-
-> **Note**: The project uses the `llama-index` ecosystem. Ensure you have a compatible LLM API key (OpenAI, Anthropic, etc.) set in your environment.
+- Python **3.9** or newer.
+- An LLM API key (OpenAI, Azure OpenAI, Anthropic, etc.).
+- Optional: A vector‑store service account (e.g., Pinecone) if you prefer a hosted store.
 
 ### Installation
 
@@ -62,45 +57,53 @@ This repository is intended for developers who want to:
 git clone https://github.com/your-org/llamaindex-rag-chatbot.git
 cd llamaindex-rag-chatbot
 
-# Create a virtual environment (optional but recommended)
+# Create a virtual environment (recommended)
 python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+source .venv/bin/activate   # on Windows use `.venv\Scripts\activate`
 
 # Install dependencies
 pip install -r requirements.txt
 ```
 
-If you prefer Docker:
+### Configuration
 
-```bash
-docker build -t llamaindex-rag-chatbot .
+Create a ```.env``` file at the project root and populate the required variables:
+
+```dotenv
+# LLM configuration (choose one)
+OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxx
+# or Azure OpenAI
+AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
+AZURE_OPENAI_API_KEY=xxxxxxxxxxxxxxxxxxxx
+
+# Vector store configuration (optional – defaults to FAISS on disk)
+FAISS_INDEX_PATH=./faiss_index
+# For Pinecone
+PINECONE_API_KEY=xxxxxxxxxxxxxxxxxxxx
+PINECONE_ENV=us-west1-gcp
 ```
 
-### Running the Demo
+> **Tip**: Keep your ```.env``` file out of version control (`git add .gitignore`).
 
-#### 1️⃣ Start the FastAPI backend
+### Running the Bot
 
-```bash
-# Export your LLM API key (example for OpenAI)
-export OPENAI_API_KEY=sk-...   # Linux/macOS
-# set OPENAI_API_KEY=sk-...   # Windows PowerShell
-
-uvicorn app.main:app --reload
-```
-The API will be available at `http://127.0.0.1:8000`.
-
-#### 2️⃣ Launch the Streamlit UI (in a separate terminal)
+#### 1️⃣ Index your documents
 
 ```bash
-streamlit run ui/chat_interface.py
+python scripts/build_index.py \
+    --source-dir ./data \
+    --index-type faiss   # or pinecone, chroma, weaviate
 ```
-Open the displayed URL (usually `http://localhost:8501`) to start chatting.
 
-#### 3️⃣ Using Docker (all‑in‑one)
+The command reads all supported files in ``./data`` and creates a vector index at the location defined in ``FAISS_INDEX_PATH``.
+
+#### 2️⃣ Launch the chatbot UI
 
 ```bash
-docker run -e OPENAI_API_KEY=sk-... -p 8000:8000 -p 8501:8501 llamaindex-rag-chatbot
+python app.py
 ```
+
+Open your browser at **http://localhost:8000**. You can now ask questions; the system will retrieve the most relevant passages and generate answers using the configured LLM.
 
 ---
 
@@ -109,116 +112,83 @@ docker run -e OPENAI_API_KEY=sk-... -p 8000:8000 -p 8501:8501 llamaindex-rag-cha
 ```
 llamaindex-rag-chatbot/
 │
-├─ app/                     # FastAPI application
-│   ├─ main.py              # Entry point, routes definition
-│   └─ rag_pipeline.py      # Core RAG logic (index creation, retrieval, generation)
-│
-├─ data/                    # Sample documents used in the demo
-│   ├─ *.pdf, *.txt, *.md
-│
-├─ ui/                      # Streamlit UI components
-│   └─ chat_interface.py    # Interactive chat page
-│
-├─ tests/                   # Unit & integration tests
-│   └─ test_rag_pipeline.py
-│
-├─ Dockerfile               # Container definition
-├─ requirements.txt         # Python dependencies
-├─ pyproject.toml           # Optional, for Poetry users
-└─ README.md                # <-- you are here!
+├─ app.py                     # FastAPI + Streamlit (or Gradio) entry point
+├─ requirements.txt           # Python dependencies
+├─ .env.example               # Template for environment variables
+├─ scripts/
+│   └─ build_index.py         # Utility to create / update the vector index
+├─ llama_index/
+│   ├─ __init__.py
+│   ├─ loaders.py             # Custom document loaders
+│   └─ rag_pipeline.py        # Core RAG logic (retriever + generator)
+├─ data/                      # Sample documents (Markdown, PDF, CSV …)
+├─ tests/                     # Unit and integration tests
+└─ docs/                      # Additional documentation, screenshots
 ```
 
 ---
 
-## Configuration
+## Usage Examples
 
-Configuration is driven by environment variables and a small `config.yaml` file (optional). The most common settings are:
+### Simple Python API
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `OPENAI_API_KEY` | Your OpenAI secret key (or equivalent for other providers) | – |
-| `LLM_MODEL` | Identifier of the LLM to use (e.g., `gpt-3.5-turbo`, `claude-2.1`) | `gpt-3.5-turbo` |
-| `VECTOR_STORE` | Vector store backend (`faiss`, `pinecone`, `qdrant`, …) | `faiss` |
-| `INDEX_PATH` | Directory where the persisted index is stored | `./index` |
-| `DOCS_PATH` | Path to the folder containing source documents | `./data` |
+```python
+from llama_index.rag_pipeline import RAGChatbot
 
-You can create a `.env` file at the project root and load it with `python-dotenv` (already included in requirements). Example:
+bot = RAGChatbot(
+    llm_model="gpt-4o-mini",
+    vector_store="faiss",
+    index_path="./faiss_index",
+)
 
-```dotenv
-OPENAI_API_KEY=sk-...
-LLM_MODEL=gpt-4o-mini
-VECTOR_STORE=faiss
-INDEX_PATH=./index
-DOCS_PATH=./data
+response = bot.ask("How does the RAG architecture improve answer factuality?")
+print(response)
 ```
+
+### Streamlit UI (default)
+
+Run ``python app.py`` and interact via the web UI. The UI displays:
+
+- User query
+- Retrieved document snippets
+- LLM‑generated answer
+- Token usage statistics
 
 ---
 
-## Development & Contribution Guidelines
+## Contributing
 
-### Setting up a Development Environment
+Contributions are welcome! Please follow these steps:
 
-1. Fork the repository and clone your fork.
-2. Follow the **Installation** steps above.
-3. Install the development extras:
+1. **Fork** the repository and create a feature branch.
+2. Ensure code style with **ruff** and type checking with **mypy**:
    ```bash
-   pip install -r requirements-dev.txt
+   pip install ruff mypy
+   ruff check .
+   mypy .
    ```
-4. Run the test suite to ensure everything works:
+3. Add or update tests in the ``tests/`` folder. Run the test suite:
    ```bash
    pytest -q
    ```
+4. Submit a **Pull Request** with a clear description of the change.
 
-### Code Style
-
-- Follow **PEP 8** and use **ruff** for linting (`ruff check .`).
-- Type annotations are required for all public functions.
-- Keep the documentation in docstrings and the README up‑to‑date.
-
-### Adding a New Vector Store
-
-1. Implement a thin wrapper that conforms to LlamaIndex's `VectorStore` interface.
-2. Add a corresponding entry in `app/rag_pipeline.py` under the `get_vector_store()` factory.
-3. Update the `README` section *Configuration* with the new `VECTOR_STORE` option.
-4. Write unit tests in `tests/`.
-
-### Submitting a Pull Request
-
-1. Ensure all tests pass (`pytest`).
-2. Run `ruff format .` and `ruff check .` – the CI will enforce a clean lint.
-3. Provide a clear description of the changes and update the changelog section below.
-
----
-
-## FAQ
-
-**Q: Can I use a local LLM instead of OpenAI?**
-A: Yes. Install the appropriate LlamaIndex LLM wrapper (e.g., `llama-index-llama-cpp`) and set `LLM_MODEL` to the local model identifier. The code automatically picks the correct provider based on the model name.
-
-**Q: How do I persist the index between runs?**
-A: The `FAISS` store writes files to the directory defined by `INDEX_PATH`. Ensure the path is mounted as a volume when using Docker.
-
-**Q: My documents are in a remote S3 bucket – can I load them?**
-A: Absolutely. Extend `app/rag_pipeline.py` with a custom loader that streams files from S3 (LlamaIndex already provides an `S3Reader`). Then add the loader to the `load_documents()` function.
+See ``CONTRIBUTING.md`` for detailed guidelines.
 
 ---
 
 ## License
 
-This project is licensed under the **MIT License** – see the [LICENSE](LICENSE) file for details.
+This project is licensed under the **MIT License** – see the ``LICENSE`` file for details.
 
 ---
 
-## Changelog
+## Acknowledgements
 
-| Version | Date | Description |
-|---------|------|-------------|
-| 0.1.0 | 2024‑10‑01 | Initial public release – basic FastAPI + Streamlit demo with FAISS & OpenAI. |
-| 0.2.0 | 2024‑11‑15 | Added Docker support, environment‑based config, and unit tests. |
-| 0.3.0 | 2025‑02‑20 | Refactored to support multiple vector stores and added contribution guide. |
+- **LlamaIndex** – the underlying framework that makes data‑aware LLM applications simple.
+- **OpenAI**, **Azure OpenAI**, **Anthropic**, **Ollama** – for providing the large language models.
+- The open‑source community for the vector‑store integrations (FAISS, Chroma, Pinecone, Weaviate).
 
 ---
 
----
-
-*Happy coding!*
+*Happy building with LlamaIndex!*
